@@ -1,0 +1,141 @@
+{   
+    "CURRENT_ECU": "TBOX",
+
+    "GW": {
+        "func_req_id": "",
+        "phy_req_id": "0x703",
+        "phy_resp_id": "0x7A3",
+        "DID_No_Security": {
+            "0xF18B": "2023.06.23"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "GW v1.1.1"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "GW"
+        },
+        "DID_IO_Control": []
+    },
+
+    "TBOX": {
+        "func_req_id": "",
+        "phy_req_id": "0x733",
+        "phy_resp_id": "0x73B",
+        "DID_No_Security": {
+            "0xF18B": "2023.06.10"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "TBOX v1.2.1"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "TBOX",
+            "0x011B": "CMIOTICV.CN",
+            "0x011C": "172.16.17.59",
+            "0x011D": "9123",
+            "0x011F": "10010",
+            "0x0124": "10086",
+            "0x104F": "ota-access.iov.com",
+            "0x1052": "log-update.iov.com",
+            "0x1053": "5670",
+            "0x1059": "adminlog",
+            "0x105A": "p4ssw0rdlog"
+        },
+        "DID_IO_Control": []
+    },
+
+    "IVI": {
+        "func_req_id": "0x7DF",
+        "phy_req_id": "0x712",
+        "phy_resp_id": "0x71A",
+        "DID_No_Security": {
+            "0xF18B": "2023.07.21"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "IVI v2.1.3"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "IVI"
+        },
+        "DID_IO_Control": []
+    },
+
+    "HUT": {
+        "func_req_id": "0x7DF",
+        "phy_req_id": "0x726",
+        "phy_resp_id": "0x7C6",
+        "DID_No_Security": {
+            "0xF18B": "2023.03.03"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "HUT v1.3.3"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "HUT"
+        },
+        "DID_IO_Control": []
+    },
+
+    "PKE": {
+        "func_req_id": "",
+        "phy_req_id": "0x772",
+        "phy_resp_id": "0x77A",
+        "DID_No_Security": {
+            "0xF18B": "2022.09.28"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "PKE v3.2.1"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "PKE"
+        },
+        "DID_IO_Control": []
+    },
+
+    "ECU1": {
+        "func_req_id": "",
+        "phy_req_id": "0x791",
+        "phy_resp_id": "0x799",
+        "DID_No_Security": {
+            "0xF18B": "2022.05.13"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "E1 v1.0.3"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "ECU1"
+        },
+        "DID_IO_Control": [
+            "0xF081"
+        ]
+    },
+
+    "ECU2": {
+        "func_req_id": "",
+        "phy_req_id": "0x792",
+        "phy_resp_id": "0x79A",
+        "DID_No_Security": { 
+            "0xF18B": "2022.06.15"
+        },
+        "DID_Security_03": {
+            "0xF180": "boot v1.0.1", 
+            "0xF187": "E2 v1.0.1"
+        },
+        "DID_Security_19": {
+            "0xF190": "LUAU2AUB3GE383467",
+            "0xF197": "ECU2"
+        },
+        "DID_IO_Control": []
+    }
+}
