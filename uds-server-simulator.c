@@ -510,7 +510,7 @@ int isIncorrectMessageLengthOrInvalidFormat(struct can_frame frame) {
             case UDS_SID_READ_DATA_BY_ID: // not support to read serval DIDs per request frame in this version
             case UDS_SID_IO_CONTROL_BY_ID: // not support to control multiple parameter per request frame in this version
                 return INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT;
-            case UDS_SID_WRITE_DATA_BY_ID: // support write single frame
+            case UDS_SID_WRITE_DATA_BY_ID: // support write multiple frame
                 if (frame.data[1] >= 0x07 && frame.data[1] <= 0xFF) {
                     return 0;
                 } else {
@@ -549,10 +549,6 @@ int isRequestOutOfRange(unsigned int did) {
         if (did == DID_IO_Control[l])
             return 0;
     }
-    // for (int m = 0; m < DID_Routine_Control_Num; m++) {
-    //     if (did == DID_Routine_Control[m])
-    //         return 0;
-    // }
     return REQUEST_OUT_OF_RANGE;
 }
 
@@ -574,10 +570,6 @@ int isSecurityAccessDenied(unsigned int did) {
         if (did == DID_IO_Control[l] && current_security_level != 0x00)
             return 0;
     }
-    // for (int m = 0; m < DID_Routine_Control_Num; m++) {
-    //     if (did == DID_Routine_Control[m] && current_security_level == 0x19)
-    //         return 0;
-    // }
     return SECURITY_ACCESS_DENIED;
 }
 
@@ -803,7 +795,7 @@ void security_access(int can, struct can_frame frame) {
         if (sl == 0x1A && current_seed_19 != NULL && current_security_phase_19 ==1) {
             keyp = security_algorithm(current_seed_19, sl);
         } 
-        /* adjust the passed key is right or not */
+        /* determine the passed key is right or not */
         if (*keyp == frame.data[3] && *(keyp+1) == frame.data[4] \
                 && *(keyp+2) == frame.data[5] && *(keyp+3) == frame.data[6]) {  // key is correct
             resp.can_id = diag_phy_resp_id;
@@ -836,7 +828,7 @@ void security_access(int can, struct can_frame frame) {
                 security_access_error_attempt += 1;
             }
         }
-        /* adjust the service 27 error attempt number is exceed or not */
+        /* determine the service 27 error attempt number is exceed or not */
         if (security_access_error_attempt >= SECURITY_ACCESS_ERROR_LIMIT_NUM) {
             send_negative_response(can, UDS_SID_SECURITY_ACCESS, EXCEED_NUMBER_OF_ATTEMPTS);
         }
