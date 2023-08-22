@@ -1,7 +1,7 @@
 /*
  * program name: uds-server-simulator
- * version: 1.0.2
- * date: 2023-08-21
+ * version: 1.0.3
+ * date: 2023-08-22
  * author: Honinbon
  * 
  * GNU General Public License v2.0
@@ -30,6 +30,8 @@
 #include "third/cJSON.h"
 
 /* Globals */
+char *version = "v1.0.3";
+
 int io_control_id_flag = 0;             // 0-false 1-true
 long io_control_seconds = 0;
 long io_control_microseconds = 0;
@@ -97,9 +99,9 @@ int DID_IO_Control_Num = 0;
 
 
 /********************************** uds_server_init Start **********************************/
-void isJsonObjNull(cJSON *object) {
+void isJsonObjNull(cJSON *object, char *str) {
     if (object == NULL) {
-        printf("## GET JSON OBJECT FAILED ##\n");
+        printf("## THE %s IS NOT EXISTED ##\n", str);
         exit(1);
     }
 }
@@ -113,7 +115,7 @@ void isValueJsonString(cJSON *object) {
 
 int set_diag_id(cJSON *items, char *key_name) {
     cJSON *diag_id_s = cJSON_GetObjectItem(items, key_name);
-    isJsonObjNull(diag_id_s);
+    isJsonObjNull(diag_id_s, key_name);
     isValueJsonString(diag_id_s);
     // printf("%#x\n", strtol(diag_id_s->valuestring, NULL, 16));
     if (diag_id_s->valuestring == "") {
@@ -132,7 +134,7 @@ int DID_assignment(cJSON *items, char *key_name, int *DID_Arrary) {
     if (DID_struct->type == cJSON_Object) {
         cJSON *obj = DID_struct->child;
         while (obj) {
-            isJsonObjNull(obj);
+            isJsonObjNull(obj, NULL);
             isValueJsonString(obj);
             DID_Arrary[i] = strtol(obj->string, NULL, 16);
             i++;
@@ -150,7 +152,7 @@ int DID_assignment(cJSON *items, char *key_name, int *DID_Arrary) {
     if (DID_struct->type == cJSON_Array) {
         cJSON *arr = DID_struct->child;
         while (arr) {
-            isJsonObjNull(arr);
+            isJsonObjNull(arr, NULL);
             isValueJsonString(arr);
             DID_Arrary[i] = strtol(arr->valuestring, NULL, 16);
             i++;
@@ -164,43 +166,30 @@ int DID_assignment(cJSON *items, char *key_name, int *DID_Arrary) {
     exit(1);
 }
 
-void uds_server_init() {
-    /* get jsonStr from a json file */
-    FILE *file = NULL;
-    file = fopen(CONFIG_JSON_FILE, "r");
-    if (file == NULL) {
-        printf("## OPEN CONFIG FAIL ##\n");
-        exit(1);
-    }
-    struct stat statbuf;
-    stat(CONFIG_JSON_FILE, &statbuf);
-    int fileSize = statbuf.st_size;
-    char *jsonStr = (char *)malloc(sizeof(char) * fileSize + 1);
-    memset(jsonStr, 0, fileSize + 1);
-    int size = fread(jsonStr, sizeof(char), fileSize, file);
-    if (size == 0) {
-        printf("## READ CONFIG FAIL ##\n");
-        exit(1);
-    }
-    fclose(file);
+// char lower2upper(char ch){
+//     if((ch >= 97) && (ch <= 122))   // lower character
+//         return ch ^ 32;
+//     else
+//         return ch;
+// }
 
-    cJSON *root = cJSON_Parse(jsonStr);
-    if (!root) {
-        const char *err = cJSON_GetErrorPtr();
-        printf("Error before: [%s]\n", err);
-        free((void *)err);
-        free(jsonStr);
-        exit(1);
+void uds_server_init(cJSON *root, char *ecu) {
+    char *current_ecu = NULL;
+    if(ecu != NULL){
+        current_ecu = ecu; 
+    }else{
+        cJSON *CURRENT_ECU = cJSON_GetObjectItem(root, "CURRENT_ECU");
+        isJsonObjNull(CURRENT_ECU, "CURRENT_ECU");
+        isValueJsonString(CURRENT_ECU);
+        current_ecu = CURRENT_ECU->valuestring;
     }
-    free(jsonStr);
-    
-    cJSON *CURRENT_ECU = cJSON_GetObjectItem(root, "CURRENT_ECU");
-    isJsonObjNull(CURRENT_ECU);
-    isValueJsonString(CURRENT_ECU);
-    char *current_ecu = CURRENT_ECU->valuestring;
+
+    // for(int i=0; i<strlen(current_ecu); i++){
+    //     *(current_ecu+i) = lower2upper(*(current_ecu+i));
+    // }
 
     cJSON *items = cJSON_GetObjectItem(root, current_ecu);
-    isJsonObjNull(items);
+    isJsonObjNull(items, current_ecu);
 
     diag_func_req_id = set_diag_id(items, "func_req_id");
     diag_phy_req_id = set_diag_id(items, "phy_req_id");
@@ -1108,8 +1097,64 @@ void handle_pkt(int can, struct can_frame frame) {
     }
 }
 
+void help(cJSON *root) {
+    char supported_ecu[256] = {0};
+
+    cJSON *obj = root->child;
+    while (obj) {
+        strncat(supported_ecu, obj->string, strlen(obj->string));
+        strncat(supported_ecu, " " , 1);
+        obj = obj->next;
+    }
+
+    char *pos = strstr(supported_ecu, "CURRENT_ECU ");
+    int left_len = strlen(pos+strlen("CURRENT_ECU "));
+    memcpy(pos, pos+strlen("CURRENT_ECU "), strlen(pos+strlen("CURRENT_ECU ")));
+    memset(pos+left_len, 0, strlen("CURRENT_ECU "));
+
+    printf("\nuds-server-simulator %s\n", version);
+    printf("Author: Honinbon\n\n");
+    printf("Usage: \n\tuds-server-simulator [options] <CAN interface> \n\n");
+    printf("Options:\n");
+    printf("\t-e <ecu name>\tecu name: %s\n", supported_ecu);
+    printf("\t-h\t\tprint this help menu\n\n");
+    printf("Examples:\n");
+    printf("\t./uds-server-simulator -e TBOX can0\n\n");
+ }
+
+cJSON *read_config(){
+    FILE *file = NULL;
+    file = fopen(CONFIG_JSON_FILE, "r");
+    if (file == NULL) {
+        printf("## OPEN CONFIG FAIL ##\n");
+        exit(1);
+    }
+    struct stat statbuf;
+    stat(CONFIG_JSON_FILE, &statbuf);
+    int fileSize = statbuf.st_size;
+    char *jsonStr = (char *)malloc(sizeof(char) * fileSize + 1);
+    memset(jsonStr, 0, fileSize + 1);
+    int size = fread(jsonStr, sizeof(char), fileSize, file);
+    if (size == 0) {
+        printf("## READ CONFIG FAIL ##\n");
+        exit(1);
+    }
+    fclose(file);
+
+    cJSON *root = cJSON_Parse(jsonStr);
+    if (!root) {
+        const char *err = cJSON_GetErrorPtr();
+        printf("Error before: [%s]\n", err);
+        free((void *)err);
+        free(jsonStr);
+        exit(1);
+    }
+    free(jsonStr);
+    return root;
+}
+
 int main(int argc, char *argv[]) {  // referred to Craig Smith's uds-server.
-    int ret;
+    int opt, ret;
     int can;
     int nbytes;
     struct ifreq ifr;
@@ -1120,12 +1165,29 @@ int main(int argc, char *argv[]) {  // referred to Craig Smith's uds-server.
     char ctrlmsg[CMSG_SPACE(sizeof(struct timeval)) + CMSG_SPACE(sizeof(__u32))];
     struct timeval timeo;
     fd_set rdfs;
+    char *ecu;
 
-    uds_server_init();
+    cJSON *root = read_config();
 
-    if (optind >= argc)
-        printf("You must specify at least one can device");
-    
+    while ((opt = getopt(argc, argv, "e:h")) != -1) {
+        switch(opt) {
+            case 'e':
+                ecu = optarg;
+                break;
+            case 'h':
+            default:
+                help(root);
+                exit(0);
+        }
+    }
+
+    if(argv[optind] == NULL){
+        help(root);
+        exit(0);
+    }
+        
+    uds_server_init(root, ecu);
+
     // Create a new raw CAN socket
     can = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can < 0)
