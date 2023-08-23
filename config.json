@@ -101,7 +101,7 @@
         "DID_IO_Control": []
     },
 
-    "ECU1": {
+    "ESP": {
         "func_req_id": "",
         "phy_req_id": "0x791",
         "phy_resp_id": "0x799",
@@ -110,18 +110,18 @@
         },
         "DID_Security_03": {
             "0xF180": "boot v1.0.1", 
-            "0xF187": "E1 v1.0.3"
+            "0xF187": "ESP v1.0.3"
         },
         "DID_Security_19": {
             "0xF190": "LUAU2AUB3GE383467",
-            "0xF197": "ECU1"
+            "0xF197": "ESP"
         },
         "DID_IO_Control": [
             "0xF081"
         ]
     },
 
-    "ECU2": {
+    "TPMS": {
         "func_req_id": "",
         "phy_req_id": "0x792",
         "phy_resp_id": "0x79A",
@@ -130,11 +130,11 @@
         },
         "DID_Security_03": {
             "0xF180": "boot v1.0.1", 
-            "0xF187": "E2 v1.0.1"
+            "0xF187": "TPMS v1.0.1"
         },
         "DID_Security_19": {
             "0xF190": "LUAU2AUB3GE383467",
-            "0xF197": "ECU2"
+            "0xF197": "TPMS"
         },
         "DID_IO_Control": []
     }
