@@ -36,7 +36,7 @@ And you can also add custom ECU information. The field requirements are as follo
     * `func_req_id`: can be set to "0x7DF", or an empty string.
     * `phy_req_id`: e.g. "0x703"
     * `phy_resp_id`: e.g. "0x7A3"    
-<br>
+
 * **Optional** 
     * format: {"DID": "DATA", ...}   
         * `DID_No_Security`: These DIDs can be read and written without authentication.
@@ -75,7 +75,7 @@ Examples:
 
     Options:  
         -e <ecu name>	ecu name: GW TBOX IVI HUT PKE ESP TPMS   
-        -h				print this help menu  
+        -h              print this help menu  
 
     Examples:   
         ./uds-server-simulator -e TBOX can0  
