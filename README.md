@@ -4,10 +4,10 @@ A configurable CAN UDS simulator.
 Author: Honinbon
 
 ## Intro
-This project is used to simulate the UDS server in the ECU, and can be configured into different ECU information through configuration files. This project welcomes all security researchers, security testers and bros who want to learn about ISO-14229.
+This project is used to simulate the UDS server in the ECU, and can be configured into different ECU information through configuration files. This project welcomes all security researchers, security testers and bros interested in learning about ISO-14229.
 
 ## Preparation
-If you have only a ubuntu without a can-hardware, you need to enable a virtual can interface.
+If you have only an ubuntu without a can-hardware, you need to enable a virtual can interface.
 ```sh
 sudo ip link add dev can0 type vcan
 
@@ -28,9 +28,9 @@ make
 ## Configration file
 The file `config.json` defines every ECU's information which needs to be initialized.
 
-The `CURRENT_ECU` defines which ECU the server should simulate.
+The `CURRENT_ECU` specifies which ECU the server should simulate.
 
-And you can also add custom ECU information. The field requirements are as follows.
+You can also add custom ECU information with the following fields:
 
 * **Mandatory**
     * `func_req_id`: can be set to "0x7DF", or an empty string.
@@ -40,8 +40,8 @@ And you can also add custom ECU information. The field requirements are as follo
 * **Optional** 
     * format: {"DID": "DATA", ...}   
         * `DID_No_Security`: These DIDs can be read and written without authentication.
-        * `DID_Security_03`: These DIDs can be read without authentication, but written with 2703 authentication.
-        * `DID_Security_19`: These DIDs can be read without authentication, but written with 2719 authentication.   
+        * `DID_Security_03`: These DIDs can be read without authentication but require 2703 authentication for writing.
+        * `DID_Security_19`: These DIDs can be read without authentication but require 2719 authentication for writing.   
     * format: [DID1, DID2, ...] 
         * `DID_IO_Control`: The IO operation corresponding to the DID must be controlled with 27 authentication.
 
@@ -67,7 +67,7 @@ Examples:
 ```
 
 ## Usage
-1. Run the uds-server-simulator, and it will initialize information from `config.json`. If you don't use the parameter `-e`, the program will use the default `CURRENT_ECU`'s value defined in `config.json`.
+1. Run `uds-server-simulator`, and it will initialize information from `config.json`. If you don't use the `-e` parameter, the program will use the default `CURRENT_ECU` value defined in `config.json`.
 
     ```
     Usage:   
@@ -92,7 +92,7 @@ Examples:
 ## Acknowledgments
 The software refers to some excellent open source projects.
 
-Thanks to:
+Special thanks to:
 
 * Craig Smith - uds-server: <https://github.com/zombieCraig/uds-server.git>
 
