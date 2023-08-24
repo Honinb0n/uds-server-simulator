@@ -18,7 +18,7 @@ sudo ip link set can0 up
 Compile it with `make` after `git clone` the repository.
 
 ```sh
-git clone https://github.com/Honinb0n/uds-server-simulator
+git clone https://github.com/Honinb0n/uds-server-simulator.git
 
 cd ./uds-server-simulator
 
@@ -75,17 +75,17 @@ Examples:
 
     Options:  
         -e <ecu name>	ecu name: GW TBOX IVI HUT PKE ESP TPMS   
-        -h              print this help menu  
+        -h                  print this help menu  
 
     Examples:   
         ./uds-server-simulator -e TBOX can0  
     ```
 
-2. You can use `cansend` and `candump` from [can-utils](https://github.com/linux-can/can-utils) to send and monitor can bus data.   
+2. You can use `cansend` and `candump` from [can-utils](https://github.com/linux-can/can-utils.git) to send and monitor can bus data.   
 
     ![usage2-1](./pic/usage2-1.png) 
     
-    Of course, you can use other socket can tool to send, receive, and even scan diagnostic can data by using [CANDetective](https://github.com/Honinb0n/CANDetective.git).
+    Of course, you can use other socket can tools to send, receive, and even scan diagnostic can data, like [CANDetective](https://github.com/Honinb0n/CANDetective.git "coming soon in a few weeks").
 
     Have a happy UDS hacking!
 
@@ -94,7 +94,7 @@ The software refers to some excellent open source projects.
 
 Thanks to:
 
-* Craig Smith - uds-server: <https://github.com/zombieCraig/uds-server>
+* Craig Smith - uds-server: <https://github.com/zombieCraig/uds-server.git>
 
 ## License
 GNU General Public License v2.0
