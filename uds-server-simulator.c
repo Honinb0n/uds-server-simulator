@@ -1,7 +1,7 @@
 /*
  * program name: uds-server-simulator
- * version: 1.1.1
- * date: 2023-08-24
+ * version: 1.1.2
+ * date: 2023-10-12
  * author: Honinbon
  * 
  * GNU General Public License v2.0
@@ -30,7 +30,7 @@
 #include "third/cJSON.h"
 
 /* Globals */
-char *version = "v1.1.1";
+char *version = "v1.1.2";
 
 int io_control_id_flag = 0;             // 0-false 1-true
 long io_control_seconds = 0;
