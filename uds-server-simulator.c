@@ -138,6 +138,8 @@ int DID_assignment(cJSON *items, char *key_name, int *DID_Arrary) {
             isValueJsonString(obj);
             DID_Arrary[i] = strtol(obj->string, NULL, 16);
             i++;
+            pairs[k].key = 0;
+            memset(pairs[k].value, 0, sizeof(pairs[k].value));
             pairs[k].key = strtol(obj->string, NULL, 16);
             strncpy(pairs[k].value, obj->valuestring, strlen(obj->valuestring));
             k++;
@@ -657,7 +659,7 @@ void read_data_by_id(int can, struct can_frame frame) {
         return;
     }
  
-    uint8_t str[256];
+    uint8_t str[256] = {0};
     str[0] = 0x62;
     str[1] = (uint8_t)((did & 0x0000ff00) >> 8);
     str[2] = (uint8_t)(did & 0x000000ff);
