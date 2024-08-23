@@ -45,17 +45,29 @@ long change_to_non_default_session_microseconds = 0;     // microseconds part
 const long S3Server_timer = 5;                           // default 5s
 
 int current_session_mode = 1;           // default session mode(1), only support 1 and 3 in this version.
-int current_security_level = 0;         // default not unlocked(0), only support 3 and 19 in this version.
+int current_security_level = 0;         // default not unlocked(0), only support 3, 19 and 21 in this version.
 int current_security_phase_3 = 0;       // default 0, there are two phases: 1 and 2.
 int current_security_phase_19 = 0;      // default 0, there are two phases: 1 and 2.
+int current_security_phase_21 = 0;      // default 0, there are two phases: 1 and 2.
 uint8_t *current_seed_3 = NULL;         // store the current 27's seed of security level 0x03.
 uint8_t *current_seed_19 = NULL;        // store the current 27's seed of security level 0x19.
-int security_access_error_attempt = 0;  // store service 27 error attempt number, only limit sl 19.
+uint8_t *current_seed_21 = NULL;        // store the current 27's seed of security level 0x21.
+int security_access_error_attempt = 0;  // store service 27 error attempt number, only limit sl 19 and 21.
+unsigned long security_access_lock_time = 0;      // store the lock time of security access, only limit sl 19 and 21.
 
 uint8_t tmp_store[8] = {0};
 
 int flow_control_flag = 0;              // 0-false 1-true
 uint8_t st_min = 0;                     // us
+
+/* This space is for $34 and $35 */
+uint8_t *firmwareSpace = NULL;
+int SPACE_SIZE = 64 * 1024;        // 64K
+int req_transfer_data_len = 0;
+int req_transfer_data_add = 0;
+int req_transfer_type = 0;           // 0x34 or 0x35
+int req_transfer_block_num = 0;
+int req_transfer_block_counter = 0;
 
 /* This is for $22 flow control packets */
 uint8_t gBuffer[256] = {0};
@@ -63,11 +75,12 @@ int gBufSize = 0;
 int gBufLengthRemaining = 0;
 int gBufCounter = 0;
 
-/* This is for $2E flow control packets */
+/* This is for $2E and $36 flow control packets */
 uint8_t ggBuffer[256] = {0};
 int ggBufSize = 0;
 int ggBufLengthRemaining = 0;
 int ggBufCounter = 0;
+int ggSID = 0;
 
 
 /********************************** DID Supported Start **********************************/
@@ -82,6 +95,10 @@ int DID_Security_03_Num = 0;
 /* DID for 22 & 2E services, write DID value with 27 19 */
 int DID_Security_19[100] = {0};
 int DID_Security_19_Num = 0;
+
+/* DID for 22 & 2E services, write DID value with 27 21 */
+int DID_Security_21[100] = {0};
+int DID_Security_21_Num = 0;
 
 /* DID number for 22 & 2E services */
 int DID_NUM = 0;
@@ -186,6 +203,11 @@ void uds_server_init(cJSON *root, char *ecu) {
         current_ecu = CURRENT_ECU->valuestring;
     }
 
+    // 64K
+    firmwareSpace = malloc(SPACE_SIZE);
+    char* test_str = "Hello world";
+    strncpy(firmwareSpace, test_str, strlen(test_str));
+
     // for(int i=0; i<strlen(current_ecu); i++){
     //     *(current_ecu+i) = lower2upper(*(current_ecu+i));
     // }
@@ -204,7 +226,8 @@ void uds_server_init(cJSON *root, char *ecu) {
     DID_No_Security_Num = DID_assignment(items, "DID_No_Security", DID_No_Security);
     DID_Security_03_Num = DID_assignment(items, "DID_Security_03", DID_Security_03);
     DID_Security_19_Num = DID_assignment(items, "DID_Security_19", DID_Security_19);
-    DID_NUM = (DID_No_Security_Num + DID_Security_03_Num + DID_Security_19_Num);
+    DID_Security_21_Num = DID_assignment(items, "DID_Security_21", DID_Security_21);
+    DID_NUM = (DID_No_Security_Num + DID_Security_03_Num + DID_Security_19_Num + DID_Security_21_Num);
 
     DID_IO_Control_Num = DID_assignment(items, "DID_IO_Control", DID_IO_Control);
 }
@@ -214,9 +237,11 @@ void uds_server_init(cJSON *root, char *ecu) {
 void reset_relevant_variables() { // when session mode changed
     current_security_level = 0;       
     current_security_phase_3 = 0;       
-    current_security_phase_19 = 0;    
+    current_security_phase_19 = 0;   
+    current_security_phase_21 = 0;  
     current_seed_3 = NULL;         
-    current_seed_19 = NULL;        
+    current_seed_19 = NULL;      
+    current_seed_21 = NULL;  
     security_access_error_attempt = 0; 
     flow_control_flag = 0;
     st_min = 0;
@@ -227,8 +252,14 @@ void reset_relevant_variables() { // when session mode changed
     ggBufSize = 0;
     ggBufLengthRemaining = 0;
     ggBufCounter = 0;
+    ggSID = 0;
     memset(ggBuffer, 0, sizeof(ggBuffer));
     memset(tmp_store, 0, sizeof(tmp_store));
+    req_transfer_data_len = 0;
+    req_transfer_data_add = 0;
+    req_transfer_type = 0;
+    req_transfer_block_num = 0;
+    req_transfer_block_counter = 0;
 }
 
 void udelay(int min) {
@@ -263,8 +294,7 @@ unsigned int get_did_from_frame(struct can_frame frame) {
 
 uint8_t *seed_generate(int sl) {
     uint8_t *seed_ptr = (uint8_t *)malloc(sizeof(uint8_t) * 4); // store 27's 4-byte seed
-    
-    if (sl == 0x03) {
+    if (sl == 0x03 || sl == current_security_level) {
         seed_ptr[0] = 0x00;
         seed_ptr[1] = 0x00;
         seed_ptr[2] = 0x00;
@@ -272,7 +302,7 @@ uint8_t *seed_generate(int sl) {
         return seed_ptr;
     }
 
-    if (sl == 0x19) {
+    if (sl == 0x19 || sl == 0x21) {
         uint8_t str[3];
         int ret;
         int num;
@@ -298,7 +328,7 @@ uint8_t *security_algorithm(uint8_t *seed_ptr, int sl) {
         return key_ptr;
 	}
 
-    if (sl == 0x1A) {
+    if (sl == 0x1A || sl == 0x22) {
         uint8_t Seed[4];
         uint8_t Const[4];
         uint8_t Key[4];
@@ -426,7 +456,7 @@ void isotp_send_to(int can, uint8_t *data, int size) {  // referred to Craig Smi
 int isSubFunctionSupported(int sid, int sf) {
     switch (sid) {
         case UDS_SID_DIAGNOSTIC_CONTROL:
-            if (sf == 0x01 || sf == 0x03) 
+            if (sf == 0x01 || sf == 0x02 || sf == 0x03) 
                 return 0;
             break;
         case UDS_SID_TESTER_PRESENT:
@@ -434,7 +464,7 @@ int isSubFunctionSupported(int sid, int sf) {
                 return 0;
             break;
         case UDS_SID_SECURITY_ACCESS:
-            if (sf == 0x03 || sf == 0x04 || sf == 0x19 || sf == 0x1A)
+            if (sf == 0x03 || sf == 0x04 || sf == 0x19 || sf == 0x1A || sf == 0x21 || sf == 0x22)
                 return 0;
             break;
         case UDS_SID_READ_DATA_BY_ID:   // 0x22 No SF
@@ -485,6 +515,9 @@ int isIncorrectMessageLengthOrInvalidFormat(struct can_frame frame) {
                 if (first_byte >= 0x04 && first_byte <= 0x05)
                     return 0;
                 break;
+            case UDS_SID_REQUEST_XFER_EXIT:
+                if (first_byte == 0x01)
+                    return 0;
             default:
                 if (first_byte >= 0x02 && first_byte <= 0x07)
                     return 0;
@@ -522,6 +555,14 @@ int isIncorrectMessageLengthOrInvalidFormat(struct can_frame frame) {
     return -1;
 }
 
+int isRequestSecurityAccessMember(unsigned int did) {
+    for (int k = 0; k < DID_Security_21_Num; k++) {
+        if (did == DID_Security_21[k])
+            return 0;
+    }
+    return -1;
+}
+
 /* NRC 0x31 requestOutOfRange */
 int isRequestOutOfRange(unsigned int did) {
     for (int i = 0; i < DID_No_Security_Num; i++) {
@@ -534,6 +575,10 @@ int isRequestOutOfRange(unsigned int did) {
     }
     for (int k = 0; k < DID_Security_19_Num; k++) {
         if (did == DID_Security_19[k])
+            return 0;
+    }
+    for (int k = 0; k < DID_Security_21_Num; k++) {
+        if (did == DID_Security_21[k])
             return 0;
     }
     for (int l = 0; l < DID_IO_Control_Num; l++) {
@@ -555,6 +600,10 @@ int isSecurityAccessDenied(unsigned int did) {
     }
     for (int k = 0; k < DID_Security_19_Num; k++) {
         if (did == DID_Security_19[k] && current_security_level == 0x19)
+            return 0;
+    }
+    for (int k = 0; k < DID_Security_21_Num; k++) {
+        if (did == DID_Security_21[k] && current_security_level == 0x21)
             return 0;
     }
     for (int l = 0; l < DID_IO_Control_Num; l++) {
@@ -653,6 +702,15 @@ void read_data_by_id(int can, struct can_frame frame) {
     gBufCounter = 0;
 
     unsigned int did = get_did_from_frame(frame);
+    
+    if (isRequestSecurityAccessMember(did) == 0) {
+        int nrc_33 = isSecurityAccessDenied(did);
+        if (nrc_33 != 0) {
+            send_negative_response(can, UDS_SID_READ_DATA_BY_ID, nrc_33);
+            return;
+        }
+    }
+
     int nrc_31 = isRequestOutOfRange(did);
     if (nrc_31 != 0) {
         send_negative_response(can, UDS_SID_READ_DATA_BY_ID, nrc_31);
@@ -719,6 +777,7 @@ void write_data_by_id(int can, struct can_frame frame) {
         ggBufSize = ((frame.data[0] & 0x0000000F) << 8) | frame.data[1];
         ggBufSize-=3;
         ggBufCounter = 0x21;
+        ggSID = UDS_SID_WRITE_DATA_BY_ID;
         ggBufLengthRemaining = ggBufSize - 3;
         memset(ggBuffer, 0, sizeof(ggBuffer));   // clear the original value
         strncpy(ggBuffer, &frame.data[5], 3);
@@ -748,7 +807,7 @@ void security_access(int can, struct can_frame frame) {
     struct can_frame resp;
 
     /* 27 first phase: request a 4-byte seed from server */
-    if (sl == 0x03 || sl == 0x19) {
+    if (sl == 0x03 || sl == 0x19 || sl == 0x21) {
 		seedp = seed_generate(sl);
         resp.can_id = diag_phy_resp_id;
         resp.can_dlc = 8;
@@ -761,19 +820,25 @@ void security_access(int can, struct can_frame frame) {
         resp.data[6] = *(seedp+3);
         resp.data[7] = 0x00;
         write(can, &resp, CAN_MTU);
-        if (sl == 0x03) {
-            current_seed_3 = seedp;
-            current_security_phase_3 = 1;
-        }
-        if (sl == 0x19) {
-            current_seed_19 = seedp;
-            current_security_phase_19 = 1;
+        if (sl != current_security_level) {
+            if (sl == 0x03) {
+                current_seed_3 = seedp;
+                current_security_phase_3 = 1;
+            }
+            if (sl == 0x19) {
+                current_seed_19 = seedp;
+                current_security_phase_19 = 1;
+            }
+            if (sl == 0x21) {
+                current_seed_21 = seedp;
+                current_security_phase_21 = 1;
+            }
         }
         return;
     }
-    if (sl == 0x04 || sl == 0x1A) {
+    if (sl == 0x04 || sl == 0x1A || sl == 0x22) {
         /* must request seed firstly */
-        if ((sl == 0x04 && current_security_phase_3 != 1) || (sl == 0x1A && current_security_phase_19 != 1)) {
+        if ((sl == 0x04 && current_security_phase_3 != 1) || (sl == 0x1A && current_security_phase_19 != 1) || (sl == 0x22 && current_security_phase_21 != 1)) {
             send_negative_response(can, UDS_SID_SECURITY_ACCESS, REQUEST_SEQUENCE_ERROR);
             return;
         }
@@ -785,6 +850,9 @@ void security_access(int can, struct can_frame frame) {
         }    
         if (sl == 0x1A && current_seed_19 != NULL && current_security_phase_19 ==1) {
             keyp = security_algorithm(current_seed_19, sl);
+        } 
+        if (sl == 0x22 && current_seed_21 != NULL && current_security_phase_21 ==1) {
+            keyp = security_algorithm(current_seed_21, sl);
         } 
         /* determine the passed key is right or not */
         if (*keyp == frame.data[3] && *(keyp+1) == frame.data[4] \
@@ -809,6 +877,12 @@ void security_access(int can, struct can_frame frame) {
                 current_security_phase_19 = 2;
                 security_access_error_attempt = 0;
             }
+            if (sl == 0x22) {
+                current_security_level = sl-1;
+                current_security_phase_21 = 2;
+                security_access_error_attempt = 0;
+            }
+            security_access_lock_time = 0;
         } else {    // key is incorrect
             send_negative_response(can, UDS_SID_SECURITY_ACCESS, INVALID_KEY);
             if (sl == 0x04) {
@@ -818,10 +892,16 @@ void security_access(int can, struct can_frame frame) {
                 current_security_phase_19 = 0;
                 security_access_error_attempt += 1;
             }
+            if (sl == 0x22) {
+                current_security_phase_21 = 0;
+                security_access_error_attempt += 1;
+            }
         }
         /* determine the service 27 error attempt number is exceed or not */
         if (security_access_error_attempt >= SECURITY_ACCESS_ERROR_LIMIT_NUM) {
             send_negative_response(can, UDS_SID_SECURITY_ACCESS, EXCEED_NUMBER_OF_ATTEMPTS);
+            // store currect time
+            security_access_lock_time = time(NULL);
         }
         /* reset the global variables current_seed_* */
         if (sl == 0x04) {
@@ -829,6 +909,9 @@ void security_access(int can, struct can_frame frame) {
         }
         if (sl == 0x1A) {
             current_seed_19 = NULL;
+        }
+        if (sl == 0x22) {
+            current_seed_21 = NULL;
         }
         return;
     }
@@ -870,6 +953,162 @@ void io_control_by_did(int can, struct can_frame frame) {
             return;
     }
 }
+
+void request_download_or_upload(int can, struct can_frame frame, int sid) {
+    u_int8_t dataFormatIdentifier = frame.data[2];
+    u_int8_t addressAndLengthFormatIdentifier = frame.data[3];
+    // high 4 bits is memoryAddressLength, low 4 bits is memorySizeLength
+    u_int8_t memoryAddressLength = (addressAndLengthFormatIdentifier & 0xF0) >> 4;
+    u_int8_t memorySizeLength = addressAndLengthFormatIdentifier & 0x0F;
+    u_int32_t memoryAddress = 0;
+    u_int32_t memorySize = 0;
+    // nrc13 check
+    if (frame.data[0] != 3+memoryAddressLength+memorySizeLength) {
+        send_negative_response(can, sid, INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        return;
+    }
+    if (memoryAddressLength > 2 || memorySizeLength > 2) {
+        send_negative_response(can, sid, REQUEST_OUT_OF_RANGE);
+        return;
+    }
+    // get memoryAddress and memorySize 
+    for (int i = 0; i < memoryAddressLength; i++) {
+        memoryAddress = memoryAddress << 8;
+        memoryAddress += frame.data[4+i];
+    }
+    for (int i = 0; i < memorySizeLength; i++) {
+        memorySize = memorySize << 8;
+        memorySize += frame.data[4+memoryAddressLength+i];
+    }
+    if (memoryAddress + memorySize >= SPACE_SIZE) {
+        send_negative_response(can, sid, REQUEST_OUT_OF_RANGE);
+        return;
+    }
+    req_transfer_data_add = memoryAddress;
+    req_transfer_data_len = memorySize;
+    
+    req_transfer_type = sid;
+    // Calculate the number of data blocks required (divide by 127 to round up the result)
+    req_transfer_block_num = (req_transfer_data_len + 127 - 1) / 127;
+
+    struct can_frame resp;
+    resp.can_id = diag_phy_resp_id;
+    resp.can_dlc = 8;
+    resp.data[0] = 0x04;
+    resp.data[1] = frame.data[1] + 0x40;
+    resp.data[2] = 0x20;    // lengthFormatIdentifier
+    resp.data[3] = 0x00;    // maximumNumberBlockLength: 0x0081
+    resp.data[4] = 0x81;
+    resp.data[5] = 0x00;
+    resp.data[6] = 0x00;
+    resp.data[7] = 0x00;
+    write(can, &resp, CAN_MTU);
+}
+
+void transfer_data(int can, struct can_frame frame) {
+    char first_char = int2nibble(frame.data[0], 0);
+    u_int8_t sequenceNumber = first_char == '0' ? frame.data[2]: frame.data[3];
+    u_int8_t buffer[129] = {0};
+
+    if (sequenceNumber > req_transfer_block_num || sequenceNumber == 0) {
+        send_negative_response(can, UDS_SID_TRANSFER_DATA, REQUEST_OUT_OF_RANGE);
+        return;
+    }
+    if (sequenceNumber != req_transfer_block_counter+1 && sequenceNumber != req_transfer_block_counter) {
+        send_negative_response(can, UDS_SID_TRANSFER_DATA, REQUEST_SEQUENCE_ERROR);
+        return;
+    }
+    if (first_char == '0') {
+        if (sequenceNumber == req_transfer_block_counter) {
+            req_transfer_block_counter--;
+        }
+    }
+    
+    
+    if (req_transfer_type == UDS_SID_REQUEST_DOWNLOAD) {
+        int max_block_len = req_transfer_data_len > 127 ? 127 : req_transfer_data_len;
+        int remain_block_data_len = req_transfer_data_len - (sequenceNumber-1)*max_block_len;
+        remain_block_data_len = remain_block_data_len > 127 ? 127 : remain_block_data_len;
+        struct can_frame resp;
+        if (first_char == '0') {
+            // reset taget memory space
+            memset(&firmwareSpace[req_transfer_data_add + (sequenceNumber-1)*max_block_len], 0, max_block_len);
+
+            resp.can_id = diag_phy_resp_id;
+            resp.can_dlc = 8;
+            resp.data[0] = 0x02;
+            resp.data[1] = frame.data[1] + 0x40;
+            resp.data[2] = ++req_transfer_block_counter;
+            resp.data[3] = 0x00;
+            resp.data[4] = 0x00;
+            resp.data[5] = 0x00;
+            resp.data[6] = 0x00;
+            resp.data[7] = 0x00;
+            write(can, &resp, CAN_MTU);
+        }
+        if (first_char == '1') {
+            ggBufSize = ((frame.data[0] & 0x0000000F) << 8) | frame.data[1];
+            ggBufSize -= 2;
+            if (ggBufSize > remain_block_data_len) {
+                send_negative_response(can, UDS_SID_TRANSFER_DATA, TRANSFER_DATA_SUSPENDED);
+                ggBufSize = 0;
+                return;
+            }
+            ggBufCounter = 0x21;
+            ggSID = UDS_SID_TRANSFER_DATA;
+            ggBufLengthRemaining = ggBufSize - 4;
+            memset(ggBuffer, 0, sizeof(ggBuffer));   // clear the original value
+            memcpy(ggBuffer, &frame.data[4], 4);
+
+            tmp_store[0] = frame.data[2];   // SID
+
+            resp.can_id = diag_phy_resp_id;
+            resp.can_dlc = 8;
+            resp.data[0] = 0x30;
+            resp.data[1] = 0x00;
+            resp.data[2] = 0x0F;
+            resp.data[3] = 0x00;
+            resp.data[4] = 0x00;
+            resp.data[5] = 0x00;
+            resp.data[6] = 0x00;
+            resp.data[7] = 0x00;
+            write(can, &resp, CAN_MTU);
+        }
+    }
+
+    if (req_transfer_type == UDS_SID_REQUEST_UPLOAD) {
+        int max_block_len = req_transfer_data_len > 127 ? 127 : req_transfer_data_len;
+        int block_len = (req_transfer_data_len - (sequenceNumber-1)*127) > 127 ? max_block_len : (req_transfer_data_len - (sequenceNumber-1)*127);
+        memcpy(buffer+2, &firmwareSpace[req_transfer_data_add + (sequenceNumber-1)*127], block_len);
+
+        buffer[0] = frame.data[1] + 0x40;
+        buffer[1] = sequenceNumber;
+        isotp_send_to(can, buffer, block_len + 2);
+        req_transfer_block_counter++;
+    }
+}
+
+void xfer_exit(int can, struct can_frame frame) {
+    struct can_frame resp;
+    resp.can_id = diag_phy_resp_id;
+    resp.can_dlc = 8;
+    resp.data[0] = 0x01;
+    resp.data[1] = frame.data[1] + 0x40;
+    resp.data[2] = 0x00;
+    resp.data[3] = 0x00;
+    resp.data[4] = 0x00;
+    resp.data[5] = 0x00;
+    resp.data[6] = 0x00;
+    resp.data[7] = 0x00;
+    write(can, &resp, CAN_MTU);
+    // reset
+    req_transfer_data_add = 0;
+    req_transfer_data_len = 0;
+    req_transfer_block_num = 0;
+    req_transfer_block_counter = 0;
+    req_transfer_type = 0x00;
+}
+
 /********************************** Service Implement End **********************************/
 
 
@@ -1006,6 +1245,10 @@ void handle_pkt(int can, struct can_frame frame) {
                         return;
                     if (isSFExisted(can, sid, sf) == -1) 
                         return;
+                    if (security_access_lock_time != 0 && (time(NULL) - security_access_lock_time) < SECURITY_ACCESS_LOCK_DELAY) {
+                        send_negative_response(can, sid, REQUIRED_TIME_DELAY_NOT_EXPIRED);
+                        return;
+                    }
                     security_access(can, frame);
                     return;
                 } else {    // default session mode
@@ -1024,6 +1267,52 @@ void handle_pkt(int can, struct can_frame frame) {
                     send_negative_response(can, sid, SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION);
                     return;
                 } 
+            case UDS_SID_REQUEST_DOWNLOAD:
+            case UDS_SID_REQUEST_UPLOAD:      // SID 0x34 or 0x35
+                if (current_session_mode != 0x02) {
+                    // MUST in programming session mode
+                    send_negative_response(can, sid, SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION);
+                    return;
+                } else if (current_security_level == 0x00) {
+                    // MUST unlock the security access
+                    send_negative_response(can, sid, SECURITY_ACCESS_DENIED);
+                    return;
+                } else if (req_transfer_type != 0) {
+                    send_negative_response(can, sid, CONDITIONS_NOT_CORRECT);
+                    return;
+                } else {
+                    request_download_or_upload(can, frame, sid);
+                    return;
+                }
+            case UDS_SID_TRANSFER_DATA:         // SID 0x36
+                if (current_session_mode != 0x02) {
+                    // MUST in programming session mode
+                    send_negative_response(can, sid, SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION);
+                    return;
+                } else if (current_security_level == 0x00) {
+                    // MUST unlock the security access
+                    send_negative_response(can, sid, SECURITY_ACCESS_DENIED);
+                    return;
+                } else if (req_transfer_type != 0x34 && req_transfer_type != 0x35) {
+                    send_negative_response(can, sid, REQUEST_SEQUENCE_ERROR);
+                    return;
+                } else {
+                    transfer_data(can, frame);
+                    return;
+                }
+            case UDS_SID_REQUEST_XFER_EXIT:
+                if (current_session_mode != 0x02) {
+                    // MUST in programming session mode
+                    send_negative_response(can, sid, SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION);
+                    return;
+                } else if (req_transfer_type != 0x34 && req_transfer_type != 0x35 || (req_transfer_block_counter != req_transfer_block_num)) {
+                    send_negative_response(can, sid, REQUEST_SEQUENCE_ERROR);
+                    return;
+                } else {
+                    xfer_exit(can, frame);
+                    return;
+                }
+
             default:
                 send_negative_response(can, sid, SERVICE_NOT_SUPPORTED);
                 return;
@@ -1050,28 +1339,50 @@ void handle_pkt(int can, struct can_frame frame) {
             } else {
                 memcpy(ggBuffer + (ggBufSize - ggBufLengthRemaining), &frame.data[1], ggBufLengthRemaining);
                 ggBufLengthRemaining = 0;
-                unsigned char bytes[] = {tmp_store[1], tmp_store[2]};   //	two bytes of DID
-                unsigned int did = (bytes[0] << 8) | bytes[1];          //	DID hex int value
-                for(int i=0; i<DID_NUM; i++) {
-                    if(pairs[i].key == did) {
-                        memset(pairs[i].value, 0, sizeof(pairs[i].value));    // clear the original value
-                        strncpy(pairs[i].value, ggBuffer, strlen(ggBuffer));
+                if (ggSID == UDS_SID_WRITE_DATA_BY_ID) {
+                    unsigned char bytes[] = {tmp_store[1], tmp_store[2]};   //	two bytes of DID
+                    unsigned int did = (bytes[0] << 8) | bytes[1];          //	DID hex int value
+                    for(int i=0; i<DID_NUM; i++) {
+                        if(pairs[i].key == did) {
+                            memset(pairs[i].value, 0, sizeof(pairs[i].value));    // clear the original value
+                            strncpy(pairs[i].value, ggBuffer, strlen(ggBuffer));
+                        }
                     }
+                    struct can_frame resp;
+                    resp.can_id = diag_phy_resp_id;
+                    resp.can_dlc = 8;
+                    resp.data[0] = 0x03;
+                    resp.data[1] = tmp_store[0] + 0x40;
+                    resp.data[2] = tmp_store[1];
+                    resp.data[3] = tmp_store[2];
+                    resp.data[4] = 0x00;
+                    resp.data[5] = 0x00;
+                    resp.data[6] = 0x00;
+                    resp.data[7] = 0x00;
+                    write(can, &resp, CAN_MTU);
+                    memset(tmp_store, 0, sizeof(tmp_store));
+                    memset(ggBuffer, 0, sizeof(ggBuffer));
                 }
-                struct can_frame resp;
-                resp.can_id = diag_phy_resp_id;
-                resp.can_dlc = 8;
-                resp.data[0] = 0x03;
-                resp.data[1] = tmp_store[0] + 0x40;
-                resp.data[2] = tmp_store[1];
-                resp.data[3] = tmp_store[2];
-                resp.data[4] = 0x00;
-                resp.data[5] = 0x00;
-                resp.data[6] = 0x00;
-                resp.data[7] = 0x00;
-                write(can, &resp, CAN_MTU);
-                memset(tmp_store, 0, sizeof(tmp_store));
-                memset(ggBuffer, 0, sizeof(ggBuffer));
+                if (ggSID == UDS_SID_TRANSFER_DATA) {
+                    memcpy(ggBuffer + (ggBufSize - ggBufLengthRemaining), &frame.data[1], ggBufLengthRemaining);
+                    int max_block_len = req_transfer_data_len > 127 ? 127 : req_transfer_data_len;
+                    int start_add = req_transfer_data_add + req_transfer_block_counter*max_block_len;
+                    memcpy(&firmwareSpace[start_add], ggBuffer, max_block_len);
+
+                    struct can_frame resp;
+                    resp.can_id = diag_phy_resp_id;
+                    resp.can_dlc = 8;
+                    resp.data[0] = 0x02;
+                    resp.data[1] = tmp_store[0] + 0x40;
+                    resp.data[2] = ++req_transfer_block_counter;
+                    resp.data[3] = 0x00;
+                    resp.data[4] = 0x00;
+                    resp.data[5] = 0x00;
+                    resp.data[6] = 0x00;
+                    resp.data[7] = 0x00;
+                    write(can, &resp, CAN_MTU);
+                    memset(ggBuffer, 0, sizeof(ggBuffer));
+                }
             }
         }
         return;
@@ -1096,6 +1407,7 @@ void handle_pkt(int can, struct can_frame frame) {
             flow_control_push_to(can);
             flow_control_flag = 0;
         }
+
     }
 }
 

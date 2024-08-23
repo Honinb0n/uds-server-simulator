@@ -42,6 +42,7 @@ You can also add custom ECU information with the following fields:
         * `DID_No_Security`: These DIDs can be read and written without authentication.
         * `DID_Security_03`: These DIDs can be read without authentication but require 2703 authentication for writing.
         * `DID_Security_19`: These DIDs can be read without authentication but require 2719 authentication for writing.   
+        * `DID_Security_21`: These DIDs require 2721 authentication for reading and writing.
     * format: [DID1, DID2, ...] 
         * `DID_IO_Control`: The IO operation corresponding to the DID must be controlled with 27 authentication.
 
@@ -62,8 +63,11 @@ Examples:
             "0xF190": "LUAU2AUB3GE383467",
             "0xF197": "GW"
         },
+        "DID_Security_21": {
+            "0xFA19": "SecurityData"
+        },
         "DID_IO_Control": []
-    }
+    },
 ```
 
 ## Usage
@@ -88,6 +92,20 @@ Examples:
     Of course, you can use other socket can tools to send, receive, and even scan diagnostic can data, like [CANDetective](https://github.com/Honinb0n/CANDetective.git "coming soon in a few weeks").
 
     Have a happy UDS hacking!
+
+### TransferData
+
+This simulator now is support the 0x34, 0x35, 0x36, 0x37 services. You can perform the following upload and download operations to the simulated memory space:
+
+1. Enter the programming session.
+2. Request for security access.
+3. Send download or upload request. (Available space: `0x0000 - 0xFFFF`)
+    - eg. `703#0734002200000019`
+        - `0022`: fixed hard-coded: uncompressed and unencrypted, memoryAddressLength and memorySizeLength are both 2 bytes
+        - `0000`: memoryAddress
+        - `0019`: memorySize
+4. Transferdata.
+5. RequestTransferExit.
 
 ## Acknowledgments
 The software refers to some excellent open source projects.

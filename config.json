@@ -16,6 +16,9 @@
             "0xF190": "LUAU2AUB3GE383467",
             "0xF197": "GW"
         },
+        "DID_Security_21": {
+            "0xFA19": "SecurityData"
+        },
         "DID_IO_Control": []
     },
 
@@ -43,6 +46,9 @@
             "0x1053": "5670",
             "0x1059": "adminlog",
             "0x105A": "p4ssw0rdlog"
+        },
+        "DID_Security_21": {
+            "0xFA19": "SecurityData"
         },
         "DID_IO_Control": []
     },
